@@ -98,3 +98,7 @@ The query files are plain JSON, so you can edit them by hand, keep them in git, 
 - **HTTP 401 or 403 after signing in:** the account signed in but can't read the workspace's data. Give it Log Analytics Reader on the workspace or resource group. A Global Administrator can also turn on *Access management for Azure resources* in Entra ID.
 - **Signed in as the wrong account, or a tenant changed:** under **CLIENTS**, use **FORGET SAVED SIGN-IN** for that client. Changing a client's tenant, client ID or login hint also resets its sign-in.
 - **A query file doesn't load:** at startup the app lists each file it skipped and why. The other files still load.
+
+## License
+
+[MIT](LICENSE) © 2026 Crawford Computing
