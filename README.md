@@ -45,7 +45,7 @@ dotnet run
 To build a self-contained single-file exe:
 
 ```powershell
-dotnet publish KqlPad -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
+dotnet publish KqlPad -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o dist
 ```
 
 ## Where data is stored

@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-KQL Pad is a Windows WPF desktop app (.NET 10, `net10.0-windows`) for keeping a library of parameterized KQL queries and running them against Azure Log Analytics workspaces belonging to multiple clients/tenants. There are no tests, no solution file, and no git repo; the only project is `KqlPad/KqlPad.csproj`.
+KQL Pad is a Windows WPF desktop app (.NET 10, `net10.0-windows`) for keeping a library of parameterized KQL queries and running them against Azure Log Analytics workspaces belonging to multiple clients/tenants. There are no tests and no solution file; the only project is `KqlPad/KqlPad.csproj`.
 
 - `KqlPad/` — source
-- `dist/KqlPad.exe` — a ~66 MB self-contained single-file build (checked-in output, not produced by any script here)
+- `dist/` — local publish output (gitignored); the exe is distributed as a GitHub release asset
 - `preview/` — screenshots of the UI
 
 ## Commands
@@ -17,10 +17,10 @@ Run from `KqlPad/`:
 ```powershell
 dotnet build
 dotnet run
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o ..\dist
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o ..\dist
 ```
 
-The publish line is how a `dist/KqlPad.exe` of that size would be produced; there is no publish profile in the repo. `WPF0001` (experimental Fluent theming) is suppressed in the csproj.
+The publish line produces the ~66 MB `dist/KqlPad.exe` attached to GitHub releases; without `EnableCompressionInSingleFile` it comes out around 143 MB. There is no publish profile in the repo. `WPF0001` (experimental Fluent theming) is suppressed in the csproj.
 
 ## Architecture
 
