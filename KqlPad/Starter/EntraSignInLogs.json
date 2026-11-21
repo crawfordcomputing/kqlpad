@@ -1,0 +1,240 @@
+{
+  "category": "Entra Sign-in Logs",
+  "description": "Entra ID sign-in logs exported to a Log Analytics workspace (SigninLogs, AADNonInteractiveUserSignInLogs).",
+  "queries": [
+    {
+      "id": "signin-user",
+      "name": "Sign-ins for a user",
+      "description": "Interactive sign-ins for one UPN, newest first.",
+      "tags": ["user", "triage"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where UserPrincipalName =~ '{{upn}}'",
+        "| project TimeGenerated, AppDisplayName, ResultType, ResultDescription, IPAddress, Location,",
+        "          ClientAppUsed, ConditionalAccessStatus, IsInteractive,",
+        "          DeviceOS = tostring(DeviceDetail.operatingSystem), Browser = tostring(DeviceDetail.browser), CorrelationId",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "signin-user-failures",
+      "name": "Failed sign-ins for a user (grouped by reason)",
+      "description": "Why a user is failing to sign in: error codes with counts, IPs and apps.",
+      "tags": ["user", "failures", "triage"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where UserPrincipalName =~ '{{upn}}'",
+        "| where ResultType != '0'",
+        "| summarize Attempts = count(), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated),",
+        "            IPs = make_set(IPAddress, 10), Apps = make_set(AppDisplayName, 10)",
+        "    by ResultType, ResultDescription",
+        "| order by Attempts desc"
+      ]
+    },
+    {
+      "id": "signin-user-locations",
+      "name": "Locations and IPs for a user",
+      "description": "Where a user signs in from. Useful for impossible-travel and compromised-account checks.",
+      "tags": ["user", "location", "compromise"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where UserPrincipalName =~ '{{upn}}'",
+        "| summarize SignIns = count(), Successes = countif(ResultType == '0'), Failures = countif(ResultType != '0'),",
+        "            FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated)",
+        "    by Location, IPAddress",
+        "| order by LastSeen desc"
+      ]
+    },
+    {
+      "id": "signin-user-ca",
+      "name": "Conditional Access results for a user",
+      "description": "One row per CA policy evaluated per sign-in (excluding policies that did not apply).",
+      "tags": ["user", "conditional access"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where UserPrincipalName =~ '{{upn}}'",
+        "| mv-expand Policy = ConditionalAccessPolicies",
+        "| extend PolicyName = tostring(Policy.displayName), PolicyResult = tostring(Policy.result)",
+        "| where PolicyResult != 'notApplied'",
+        "| project TimeGenerated, AppDisplayName, PolicyName, PolicyResult, ConditionalAccessStatus, ResultType, IPAddress",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "signin-user-mfa",
+      "name": "MFA prompts and failures for a user",
+      "description": "50074/50076 MFA required, 500121 MFA failed, 50072 prompted to enroll, 50158 external challenge.",
+      "tags": ["user", "mfa"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where UserPrincipalName =~ '{{upn}}'",
+        "| where ResultType in ('50074', '50076', '500121', '50072', '50158')",
+        "| project TimeGenerated, AppDisplayName, ResultType, ResultDescription, IPAddress, Location, AuthenticationRequirement",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "signin-user-noninteractive",
+      "name": "Non-interactive sign-ins for a user",
+      "description": "Token refreshes and background app sign-ins (AADNonInteractiveUserSignInLogs).",
+      "tags": ["user", "non-interactive"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AADNonInteractiveUserSignInLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where UserPrincipalName =~ '{{upn}}'",
+        "| project TimeGenerated, AppDisplayName, ResourceDisplayName, ResultType, ResultDescription, IPAddress, Location, ClientAppUsed, UserAgent",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "signin-by-ip",
+      "name": "Sign-ins from an IP address",
+      "description": "Which accounts and apps an IP touched, and whether they succeeded.",
+      "tags": ["ip", "compromise"],
+      "parameters": [
+        { "name": "ip", "label": "IP address", "default": "203.0.113.10" },
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where IPAddress == '{{ip}}'",
+        "| summarize SignIns = count(), Successes = countif(ResultType == '0'), Failures = countif(ResultType != '0'),",
+        "            Apps = make_set(AppDisplayName, 10), FirstSeen = min(TimeGenerated), LastSeen = max(TimeGenerated)",
+        "    by UserPrincipalName",
+        "| order by SignIns desc"
+      ]
+    },
+    {
+      "id": "signin-by-app",
+      "name": "Sign-ins to an application",
+      "description": "Who signed in to a given app (partial name match).",
+      "tags": ["app"],
+      "parameters": [
+        { "name": "app", "label": "App display name contains", "default": "Azure Portal" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where AppDisplayName contains '{{app}}'",
+        "| project TimeGenerated, UserPrincipalName, AppDisplayName, ResultType, ResultDescription, IPAddress, Location, ConditionalAccessStatus",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "signin-spray",
+      "name": "Password spray indicators",
+      "description": "IPs with bad-password or lockout results across many different accounts.",
+      "tags": ["attack", "spray"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "7", "raw": true },
+        { "name": "minUsers", "label": "Min distinct users per IP", "default": "5", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where ResultType in ('50126', '50053')",
+        "| summarize FailedAttempts = count(), DistinctUsers = dcount(UserPrincipalName),",
+        "            Users = make_set(UserPrincipalName, 20), LastSeen = max(TimeGenerated)",
+        "    by IPAddress, Country = tostring(LocationDetails.countryOrRegion)",
+        "| where DistinctUsers >= {{minUsers}}",
+        "| order by DistinctUsers desc"
+      ]
+    },
+    {
+      "id": "signin-top-failures",
+      "name": "Top failing users",
+      "description": "Accounts with the most failed sign-ins.",
+      "tags": ["failures", "overview"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "7", "raw": true },
+        { "name": "top", "label": "Top N", "default": "25", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where ResultType != '0'",
+        "| summarize Failures = count(), DistinctIPs = dcount(IPAddress), LastFailure = max(TimeGenerated) by UserPrincipalName",
+        "| top {{top}} by Failures desc"
+      ]
+    },
+    {
+      "id": "signin-legacy-auth",
+      "name": "Legacy authentication sign-ins",
+      "description": "Anything that is not a modern-auth browser or client (IMAP, POP, SMTP, ActiveSync, EWS ...).",
+      "tags": ["legacy auth", "hardening"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where isnotempty(ClientAppUsed) and ClientAppUsed !in ('Browser', 'Mobile Apps and Desktop clients')",
+        "| summarize SignIns = count(), Users = dcount(UserPrincipalName), LastSeen = max(TimeGenerated) by ClientAppUsed, AppDisplayName",
+        "| order by SignIns desc"
+      ]
+    },
+    {
+      "id": "signin-single-factor",
+      "name": "Successful single-factor sign-ins",
+      "description": "Users getting in with no MFA. Review against your CA policies.",
+      "tags": ["mfa", "hardening"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where ResultType == '0' and AuthenticationRequirement == 'singleFactorAuthentication'",
+        "| summarize SignIns = count(), Apps = make_set(AppDisplayName, 10), LastSeen = max(TimeGenerated) by UserPrincipalName",
+        "| order by SignIns desc"
+      ]
+    },
+    {
+      "id": "signin-risky",
+      "name": "Risky sign-ins",
+      "description": "Sign-ins flagged low/medium/high by Entra ID Protection (needs P2 licensing).",
+      "tags": ["risk", "identity protection"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "SigninLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where RiskLevelDuringSignIn in ('low', 'medium', 'high') or RiskLevelAggregated in ('low', 'medium', 'high')",
+        "| project TimeGenerated, UserPrincipalName, AppDisplayName, RiskLevelDuringSignIn, RiskLevelAggregated, RiskState, RiskEventTypes_V2, IPAddress, Location, ResultType",
+        "| order by TimeGenerated desc"
+      ]
+    }
+  ]
+}

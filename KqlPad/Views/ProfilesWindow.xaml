@@ -1,0 +1,82 @@
+<Window x:Class="KqlPad.Views.ProfilesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CLIENTS" Width="900" Height="740" MinWidth="740" MinHeight="520"
+        Style="{StaticResource ConsoleWindow}"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="// CLIENTS" Style="{StaticResource SectionLabel}"/>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button Content="+ ADD" Click="Add_Click"/>
+                    <Button Content="REMOVE" Click="Remove_Click" Margin="0"/>
+                </StackPanel>
+                <ListBox x:Name="List" ItemsSource="{Binding Profiles}" DisplayMemberPath="Name"/>
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Column="2" Style="{StaticResource PanelBorder}">
+            <DockPanel>
+                <Button DockPanel.Dock="Bottom" Content="CLOSE" IsDefault="True" IsCancel="True" HorizontalAlignment="Right"
+                        Margin="0,10,0,0" Click="Close_Click"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel DataContext="{Binding SelectedItem, ElementName=List}" Margin="0,0,18,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedItem, ElementName=List}" Value="{x:Null}">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <TextBlock Text="CLIENT NAME" Style="{StaticResource SectionLabel}"/>
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="TENANT ID" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="GUID or domain, e.g. contoso.onmicrosoft.com" Style="{StaticResource Hint}"/>
+                        <TextBox Text="{Binding TenantId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="LOG ANALYTICS WORKSPACE ID" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Workspace GUID from the workspace Overview blade (not the resource ID)" Style="{StaticResource Hint}"/>
+                        <TextBox Text="{Binding WorkspaceId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="WORKSPACE RESOURCE ID  (OPTIONAL)" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="/subscriptions/.../workspaces/name - enables the Open in portal button" Style="{StaticResource Hint}"/>
+                        <TextBox Text="{Binding WorkspaceResourceId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="SIGN-IN ACCOUNT  (OPTIONAL)" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Pre-selects this admin account at the Microsoft sign-in prompt" Style="{StaticResource Hint}"/>
+                        <TextBox Text="{Binding LoginHint, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+
+                        <TextBlock Text="APP REGISTRATION CLIENT ID  (OPTIONAL)" Style="{StaticResource SectionLabel}"/>
+                        <TextBlock Text="Only needed if the tenant blocks the default Microsoft public client" Style="{StaticResource Hint}"/>
+                        <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,16"/>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="TEST SIGN-IN + QUERY" Click="Test_Click"/>
+                            <Button Content="FORGET SAVED SIGN-IN" Click="Forget_Click" Style="{StaticResource GhostButton}"/>
+                        </StackPanel>
+                        <TextBox x:Name="TestResult" IsReadOnly="True" TextWrapping="Wrap" Margin="0,12,0,0"
+                                 BorderThickness="0" Background="Transparent" Visibility="Collapsed"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

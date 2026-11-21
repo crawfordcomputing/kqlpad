@@ -1,0 +1,124 @@
+{
+  "category": "Windows Security Events",
+  "description": "Windows security log collected into the SecurityEvent table (Azure Monitor Agent / Defender for Servers).",
+  "queries": [
+    {
+      "id": "winsec-failed-logons-account",
+      "name": "Failed logons for an account (4625)",
+      "description": "Failed logon attempts for a user name, with source IP and logon type.",
+      "tags": ["logon", "failures"],
+      "parameters": [
+        { "name": "account", "label": "User name", "default": "jsmith" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID == 4625",
+        "| where TargetUserName =~ '{{account}}'",
+        "| project TimeGenerated, Computer, Account, LogonType, IpAddress, WorkstationName, Status, SubStatus",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "winsec-logons-account",
+      "name": "Successful logons for an account (4624)",
+      "description": "Where and how an account logged on (LogonType 2 console, 3 network, 10 RDP ...).",
+      "tags": ["logon"],
+      "parameters": [
+        { "name": "account", "label": "User name", "default": "jsmith" },
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID == 4624",
+        "| where TargetUserName =~ '{{account}}'",
+        "| project TimeGenerated, Computer, Account, LogonType, IpAddress, WorkstationName",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "winsec-failed-by-ip",
+      "name": "Failed logons by source IP",
+      "description": "Brute-force indicators: IPs failing against many accounts or machines.",
+      "tags": ["attack", "failures"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "3", "raw": true },
+        { "name": "min", "label": "Min failures", "default": "10", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID == 4625 and isnotempty(IpAddress) and IpAddress != '-'",
+        "| summarize Failures = count(), Accounts = dcount(TargetUserName), Computers = dcount(Computer), LastSeen = max(TimeGenerated) by IpAddress",
+        "| where Failures >= {{min}}",
+        "| order by Failures desc"
+      ]
+    },
+    {
+      "id": "winsec-lockouts",
+      "name": "Account lockouts (4740)",
+      "description": "Accounts locked out, and the machine that caused it.",
+      "tags": ["lockout"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID == 4740",
+        "| project TimeGenerated, Computer, TargetUserName, TargetDomainName, Activity",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "winsec-group-changes",
+      "name": "Security group membership changes (4728/4732/4756)",
+      "description": "Members added to global, local or universal security groups.",
+      "tags": ["groups", "privilege"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID in (4728, 4732, 4756)",
+        "| project TimeGenerated, Computer, Activity, MemberName, TargetUserName, SubjectAccount",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "winsec-account-changes",
+      "name": "Account create / enable / disable / delete / reset",
+      "description": "4720 created, 4722 enabled, 4723/4724 password change/reset, 4725 disabled, 4726 deleted.",
+      "tags": ["accounts"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID in (4720, 4722, 4723, 4724, 4725, 4726)",
+        "| project TimeGenerated, Computer, EventID, Activity, TargetAccount, SubjectAccount",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "winsec-log-cleared",
+      "name": "Security log cleared (1102)",
+      "description": "Someone cleared the security audit log.",
+      "tags": ["tampering"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "90", "raw": true }
+      ],
+      "kql": [
+        "SecurityEvent",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where EventID == 1102",
+        "| project TimeGenerated, Computer, Activity, SubjectAccount",
+        "| order by TimeGenerated desc"
+      ]
+    }
+  ]
+}

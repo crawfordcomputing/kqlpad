@@ -1,0 +1,290 @@
+﻿<Window x:Class="KqlPad.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:KqlPad.ViewModels"
+        xmlns:views="clr-namespace:KqlPad.Views"
+        Title="KQL//PAD" Width="1320" Height="860" MinWidth="960" MinHeight="620"
+        Style="{StaticResource ConsoleWindow}"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <Style x:Key="EmptyState" TargetType="Grid">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasSelection}" Value="False">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="9"/>
+            <Setter Property="Height" Value="9"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
+            <Setter Property="Fill" Value="{StaticResource GreenBrush}"/>
+            <Setter Property="Effect">
+                <Setter.Value><DropShadowEffect Color="#39FF88" BlurRadius="10" ShadowDepth="0" Opacity="0.9"/></Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource MagentaBrush}"/>
+                    <Setter Property="Effect">
+                        <Setter.Value><DropShadowEffect Color="#FF2E97" BlurRadius="12" ShadowDepth="0" Opacity="1"/></Setter.Value>
+                    </Setter>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="Pulse">
+                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.2" Duration="0:0:0.45"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <StopStoryboard BeginStoryboardName="Pulse"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============ HEADER ============ -->
+        <Border Grid.Row="0" Background="#D00A0A18" Padding="18,10">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,34,0">
+                    <TextBlock Text="KQL//PAD" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentGradientBrush}">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="#FF2E97" BlurRadius="18" ShadowDepth="0" Opacity="0.75"/>
+                        </TextBlock.Effect>
+                    </TextBlock>
+                    <TextBlock Text="LOG ANALYTICS QUERY CONSOLE" FontSize="10" Foreground="{StaticResource TextDimBrush}"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Content="CLIENTS" Click="ManageClients_Click"/>
+                    <Button Style="{StaticResource GhostButton}" Content="LIBRARY FOLDER" Click="OpenLibraryFolder_Click"/>
+                    <Button Style="{StaticResource GhostButton}" Content="RESTORE STARTERS" Click="RestoreStarters_Click" Margin="0"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="CLIENT" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <!-- ItemTemplate (not DisplayMemberPath) so the closed box binds live to Name instead of a snapshot. -->
+                    <ComboBox x:Name="ClientCombo" Width="260" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="{Binding ProfileSummary}" VerticalAlignment="Center" Margin="14,0,0,0"
+                               Foreground="{StaticResource TextDimBrush}" FontSize="12"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <Rectangle Grid.Row="1" Fill="{StaticResource AccentGradientBrush}"/>
+
+        <!-- ============ BODY ============ -->
+        <Grid Grid.Row="2" Margin="14,14,14,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" MinWidth="240"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*" MinWidth="520"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Library -->
+            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="// LIBRARY" Style="{StaticResource SectionLabel}"/>
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBox x:Name="SearchBox" Padding="26,6,8,6"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Search names, descriptions, tags and KQL"/>
+                        <TextBlock Text="&gt;" Foreground="{StaticResource MagentaBrush}" FontWeight="Bold"
+                                   VerticalAlignment="Center" Margin="10,0,0,1" IsHitTestVisible="False"/>
+                    </Grid>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="+ QUERY" Click="NewQuery_Click"/>
+                        <Button Content="+ CATEGORY" Click="NewCategory_Click" Margin="0"/>
+                    </StackPanel>
+                    <TreeView x:Name="QueryTree" SelectedItemChanged="QueryTree_SelectedItemChanged" ItemsSource="{Binding Tree}">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        <TreeView.Resources>
+                            <HierarchicalDataTemplate DataType="{x:Type vm:CategoryVM}" ItemsSource="{Binding Items}">
+                                <TextBlock Text="{Binding Header}" FontWeight="Bold" Foreground="{StaticResource CyanBrush}" Padding="0,3">
+                                    <TextBlock.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="New query in this category" Click="CatNewQuery_Click"/>
+                                            <MenuItem Header="Rename category..." Click="CatRename_Click"/>
+                                            <MenuItem Header="Delete category..." Click="CatDelete_Click"/>
+                                        </ContextMenu>
+                                    </TextBlock.ContextMenu>
+                                </TextBlock>
+                            </HierarchicalDataTemplate>
+                            <DataTemplate DataType="{x:Type vm:QueryItemVM}">
+                                <TextBlock Padding="0,3" ToolTip="{Binding Description}" TextTrimming="CharacterEllipsis">
+                                    <Run Text="&#8250; " Foreground="{StaticResource MagentaBrush}" FontWeight="Bold"/><Run Text="{Binding Name, Mode=OneWay}"/>
+                                    <TextBlock.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Edit..." Click="ItemEdit_Click"/>
+                                            <MenuItem Header="Duplicate" Click="ItemDuplicate_Click"/>
+                                            <MenuItem Header="Delete..." Click="ItemDelete_Click"/>
+                                        </ContextMenu>
+                                    </TextBlock.ContextMenu>
+                                </TextBlock>
+                            </DataTemplate>
+                        </TreeView.Resources>
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="10" HorizontalAlignment="Stretch"/>
+
+            <!-- Workspace -->
+            <Grid Grid.Column="2">
+                <!-- empty state -->
+                <Grid Style="{StaticResource EmptyState}">
+                    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Background="#B0070712" ClipToBounds="True">
+                        <Grid>
+                            <views:RetroBackdrop/>
+                            <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,46,0,0">
+                                <TextBlock Text="KQL//PAD" FontSize="56" FontWeight="Bold" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource AccentGradientBrush}">
+                                    <TextBlock.Effect>
+                                        <DropShadowEffect Color="#FF2E97" BlurRadius="26" ShadowDepth="0" Opacity="0.85"/>
+                                    </TextBlock.Effect>
+                                </TextBlock>
+                                <TextBlock Text="SELECT A QUERY FROM THE LIBRARY" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource CyanBrush}" FontSize="13" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Grid Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="2*" MinHeight="130"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="3*" MinHeight="130"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Title -->
+                    <DockPanel Grid.Row="0" Margin="2,0,0,10">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                            <Button Style="{StaticResource GhostButton}" Content="EDIT" Click="ItemEdit_Click"/>
+                            <Button Style="{StaticResource GhostButton}" Content="DUPLICATE" Click="ItemDuplicate_Click"/>
+                            <Button Style="{StaticResource GhostButton}" Content="DELETE" Click="ItemDelete_Click" Margin="0"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="{Binding SelectedItem.Name}" FontSize="21" FontWeight="Bold" TextWrapping="Wrap"
+                                       Foreground="White">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="#00F0FF" BlurRadius="14" ShadowDepth="0" Opacity="0.45"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                            <TextBlock Text="{Binding SelectedItem.Description}" Foreground="{StaticResource TextDimBrush}"
+                                       TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Parameters -->
+                    <Border Grid.Row="1" Margin="0,0,0,10">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource PanelBorder}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Params.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock Text="// PARAMETERS" Style="{StaticResource SectionLabel}" Margin="0,0,0,6"/>
+                            <ItemsControl ItemsSource="{Binding Params}" Grid.IsSharedSizeScope="True">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,5" ToolTip="{Binding Description}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="ParamLabel"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock VerticalAlignment="Center" Margin="0,0,14,0">
+                                                <Run Text="$" Foreground="{StaticResource MagentaBrush}" FontWeight="Bold"/>
+                                                <Run Text="{Binding Label, Mode=OneWay}" Foreground="{StaticResource TextDimBrush}"/>
+                                            </TextBlock>
+                                            <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Rendered KQL -->
+                    <DockPanel Grid.Row="2">
+                        <TextBlock DockPanel.Dock="Top" Text="// KQL" Style="{StaticResource SectionLabel}" Margin="2,0,0,4"/>
+                        <RichTextBox x:Name="KqlView" Style="{StaticResource ConsoleTextBoxBase}" IsReadOnly="True" IsDocumentEnabled="False"
+                                     Padding="6,4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                    </DockPanel>
+
+                    <!-- Actions -->
+                    <DockPanel Grid.Row="3" Margin="0,12,0,0" LastChildFill="False">
+                        <Button DockPanel.Dock="Left" Content="COPY KQL" Click="CopyKql_Click"/>
+                        <Button DockPanel.Dock="Left" Content="OPEN IN PORTAL" Click="OpenPortal_Click"
+                                ToolTip="Opens Log Analytics in the Azure portal for this client with the query pre-filled (needs the workspace resource ID)"/>
+                        <Button DockPanel.Dock="Right" Content="CANCEL" Click="Cancel_Click" Margin="0" IsEnabled="{Binding IsRunning}"/>
+                        <Button DockPanel.Dock="Right" Content="RUN  &#9654;" Click="Run_Click" Style="{StaticResource PrimaryButton}"
+                                IsEnabled="{Binding IsNotRunning}"/>
+                    </DockPanel>
+
+                    <GridSplitter Grid.Row="4" Height="10" HorizontalAlignment="Stretch"/>
+
+                    <!-- Results -->
+                    <Grid Grid.Row="5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DockPanel Grid.Row="0" Margin="2,0,0,6" LastChildFill="True">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="EXPORT CSV" Click="ExportCsv_Click"
+                                    Margin="0" x:Name="ExportButton" IsEnabled="False"/>
+                            <TextBlock x:Name="ResultInfo" Text="// RESULTS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0"/>
+                        </DockPanel>
+                        <TextBox Grid.Row="1" x:Name="ErrorBox" IsReadOnly="True" TextWrapping="Wrap" Visibility="Collapsed"
+                                 Margin="0,0,0,6" Foreground="{StaticResource RedBrush}" BorderBrush="{StaticResource RedBrush}"
+                                 MaxHeight="170" VerticalScrollBarVisibility="Auto"/>
+                        <DataGrid Grid.Row="2" x:Name="ResultGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                  ClipboardCopyMode="IncludeHeader" SelectionUnit="CellOrRowHeader"
+                                  CanUserAddRows="False" HeadersVisibility="Column" EnableRowVirtualization="True"/>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ============ STATUS BAR ============ -->
+        <Border Grid.Row="3" Background="#E00A0A18" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,7">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="v0.1" Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                <Ellipse DockPanel.Dock="Left" Style="{StaticResource StatusDot}"/>
+                <TextBlock Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis">
+                    <Run Text="&gt; " Foreground="{StaticResource MagentaBrush}" FontWeight="Bold"/><Run Text="{Binding Status, Mode=OneWay}"/>
+                </TextBlock>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

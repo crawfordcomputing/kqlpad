@@ -1,0 +1,109 @@
+{
+  "category": "Azure Activity",
+  "description": "Azure control-plane operations (AzureActivity table, from the subscription Activity Log).",
+  "queries": [
+    {
+      "id": "activity-by-caller",
+      "name": "Operations by a caller",
+      "description": "Write / delete / action operations performed by one identity.",
+      "tags": ["user", "triage"],
+      "parameters": [
+        { "name": "caller", "label": "Caller (UPN or app ID)", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "AzureActivity",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Caller =~ '{{caller}}'",
+        "| where ActivityStatusValue in~ ('Success', 'Succeeded', 'Failure', 'Failed')",
+        "| project TimeGenerated, OperationNameValue, ActivityStatusValue, ResourceGroup, _ResourceId, CallerIpAddress",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "activity-deletes",
+      "name": "Resource deletions",
+      "description": "Successful delete operations and who performed them.",
+      "tags": ["deletes", "change"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "AzureActivity",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationNameValue endswith '/delete'",
+        "| where ActivityStatusValue in~ ('Success', 'Succeeded')",
+        "| project TimeGenerated, Caller, CallerIpAddress, OperationNameValue, ResourceGroup, _ResourceId",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "activity-role-assignments",
+      "name": "RBAC role assignment changes",
+      "description": "Role assignments created or removed at any scope.",
+      "tags": ["rbac", "privilege"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AzureActivity",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationNameValue in~ ('MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE', 'MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE')",
+        "| where ActivityStatusValue in~ ('Success', 'Succeeded')",
+        "| project TimeGenerated, Caller, CallerIpAddress, OperationNameValue, SubscriptionId, ResourceGroup, _ResourceId, Properties",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "activity-failures",
+      "name": "Failed operations",
+      "description": "Operations that failed, grouped by operation and caller.",
+      "tags": ["failures"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "AzureActivity",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where ActivityStatusValue in~ ('Failure', 'Failed')",
+        "| summarize Failures = count(), LastSeen = max(TimeGenerated) by OperationNameValue, Caller, ResourceGroup",
+        "| order by Failures desc"
+      ]
+    },
+    {
+      "id": "activity-by-resource",
+      "name": "Activity on a resource",
+      "description": "All operations against resources whose ID contains the text (name, resource group, type ...).",
+      "tags": ["resource"],
+      "parameters": [
+        { "name": "resource", "label": "Resource ID contains", "default": "my-vm-01" },
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AzureActivity",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where _ResourceId contains '{{resource}}'",
+        "| where ActivityStatusValue in~ ('Success', 'Succeeded', 'Failure', 'Failed')",
+        "| project TimeGenerated, Caller, CallerIpAddress, OperationNameValue, ActivityStatusValue, _ResourceId",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "activity-by-ip",
+      "name": "Operations from an IP",
+      "description": "Control-plane activity coming from a caller IP address.",
+      "tags": ["ip", "compromise"],
+      "parameters": [
+        { "name": "ip", "label": "Caller IP", "default": "203.0.113.10" },
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AzureActivity",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where CallerIpAddress == '{{ip}}'",
+        "| project TimeGenerated, Caller, OperationNameValue, ActivityStatusValue, ResourceGroup, _ResourceId",
+        "| order by TimeGenerated desc"
+      ]
+    }
+  ]
+}

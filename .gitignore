@@ -1,0 +1,49 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+*.binlog
+
+# Packaged single-file exe (~66 MB); attach to a release instead of committing
+dist/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Visual Studio / Rider / VS Code
+.vs/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+.idea/
+*.DotSettings.user
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Test / coverage results
+[Tt]est[Rr]esult*/
+coverage*/
+*.coverage
+*.trx
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak

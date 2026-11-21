@@ -1,0 +1,157 @@
+{
+  "category": "Entra Audit Logs",
+  "description": "Entra ID directory changes (AuditLogs table).",
+  "queries": [
+    {
+      "id": "audit-user-activity",
+      "name": "Audit activity involving a user",
+      "description": "Changes made by, or made to, a given account.",
+      "tags": ["user", "triage"],
+      "parameters": [
+        { "name": "upn", "label": "User UPN", "default": "name@example.com" },
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         ActorIp = tostring(InitiatedBy.user.ipAddress),",
+        "         Target = tostring(TargetResources[0].userPrincipalName)",
+        "| where Actor =~ '{{upn}}' or Target =~ '{{upn}}'",
+        "| project TimeGenerated, OperationName, Result, ResultReason, Actor, ActorIp, Target, Category, CorrelationId",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-role-changes",
+      "name": "Role assignment changes",
+      "description": "Directory role adds/removes, including PIM activations.",
+      "tags": ["roles", "privilege"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Category == 'RoleManagement'",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         Target = coalesce(tostring(TargetResources[0].userPrincipalName), tostring(TargetResources[0].displayName)),",
+        "         Role = tostring(TargetResources[1].displayName)",
+        "| project TimeGenerated, OperationName, Result, Actor, Target, Role",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-user-lifecycle",
+      "name": "User create / delete / password reset",
+      "description": "Account lifecycle and password change events.",
+      "tags": ["users", "passwords"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationName in~ ('Add user', 'Delete user', 'Reset user password', 'Change user password',",
+        "                           'Change password (self-service)', 'Reset password (self-service)', 'Enable account', 'Disable account')",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         Target = tostring(TargetResources[0].userPrincipalName)",
+        "| project TimeGenerated, OperationName, Result, Actor, Target",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-ca-changes",
+      "name": "Conditional Access policy changes",
+      "description": "Policies added, updated or deleted, and who did it.",
+      "tags": ["conditional access", "change"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "60", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationName has 'conditional access policy'",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         Policy = tostring(TargetResources[0].displayName)",
+        "| project TimeGenerated, OperationName, Result, Actor, Policy, CorrelationId",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-auth-methods",
+      "name": "MFA / authentication method changes",
+      "description": "Security info registered, deleted or changed. Watch for attackers adding their own method.",
+      "tags": ["mfa", "compromise"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationName has_any ('security info', 'authentication method', 'Authentication Methods')",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         ActorIp = tostring(InitiatedBy.user.ipAddress),",
+        "         Target = tostring(TargetResources[0].userPrincipalName)",
+        "| project TimeGenerated, OperationName, Result, ResultReason, Actor, ActorIp, Target",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-app-consent",
+      "name": "App consents and service principal changes",
+      "description": "Consent grants, new apps and credentials: common persistence after a phish.",
+      "tags": ["apps", "persistence"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationName has_any ('Consent to application', 'service principal', 'delegated permission grant', 'app role assignment', 'Add application', 'Update application')",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         ActorIp = tostring(InitiatedBy.user.ipAddress),",
+        "         App = tostring(TargetResources[0].displayName)",
+        "| project TimeGenerated, OperationName, Result, Actor, ActorIp, App",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-group-membership",
+      "name": "Group membership changes",
+      "description": "Members added to or removed from groups whose name matches.",
+      "tags": ["groups"],
+      "parameters": [
+        { "name": "group", "label": "Group name contains", "default": "Global Admins" },
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where OperationName in~ ('Add member to group', 'Remove member from group')",
+        "| where tostring(TargetResources) contains '{{group}}'",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)),",
+        "         Member = tostring(TargetResources[0].userPrincipalName)",
+        "| project TimeGenerated, OperationName, Result, Actor, Member, TargetResources",
+        "| order by TimeGenerated desc"
+      ]
+    },
+    {
+      "id": "audit-failures",
+      "name": "Failed audit operations",
+      "description": "Directory operations that returned failure.",
+      "tags": ["failures"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "AuditLogs",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Result =~ 'failure'",
+        "| extend Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName))",
+        "| project TimeGenerated, OperationName, Category, Actor, ResultReason",
+        "| order by TimeGenerated desc"
+      ]
+    }
+  ]
+}

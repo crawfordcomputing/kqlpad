@@ -1,0 +1,207 @@
+{
+  "category": "Azure Firewall",
+  "description": "Azure Firewall logs. Uses the resource-specific tables (AZFW*). The legacy AzureDiagnostics variant is at the bottom.",
+  "queries": [
+    {
+      "id": "azfw-net-denied-top",
+      "name": "Denied network traffic (top flows)",
+      "description": "Most frequently denied source / destination / port combinations.",
+      "tags": ["network rules", "denied"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "3", "raw": true },
+        { "name": "top", "label": "Top N", "default": "50", "raw": true }
+      ],
+      "kql": [
+        "AZFWNetworkRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Action == 'Deny'",
+        "| summarize Hits = count(), LastSeen = max(TimeGenerated) by SourceIp, DestinationIp, DestinationPort, Protocol",
+        "| top {{top}} by Hits desc"
+      ]
+    },
+    {
+      "id": "azfw-net-by-ip",
+      "name": "Network rule traffic for an IP",
+      "description": "Everything the firewall saw to or from one IP, with the rule that matched.",
+      "tags": ["network rules", "ip"],
+      "parameters": [
+        { "name": "ip", "label": "IP address", "default": "10.0.0.4" },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWNetworkRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where SourceIp == '{{ip}}' or DestinationIp == '{{ip}}'",
+        "| project TimeGenerated, Action, Protocol, SourceIp, SourcePort, DestinationIp, DestinationPort, Policy, RuleCollectionGroup, RuleCollection, Rule",
+        "| order by TimeGenerated desc",
+        "| take 1000"
+      ]
+    },
+    {
+      "id": "azfw-net-by-port",
+      "name": "Network rule traffic to a destination port",
+      "description": "Who is talking to a given port (RDP 3389, SSH 22, SMB 445 ...).",
+      "tags": ["network rules", "port"],
+      "parameters": [
+        { "name": "port", "label": "Destination port", "default": "3389", "raw": true },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWNetworkRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where DestinationPort == {{port}}",
+        "| summarize Hits = count(), Allowed = countif(Action == 'Allow'), Denied = countif(Action == 'Deny'), LastSeen = max(TimeGenerated)",
+        "    by SourceIp, DestinationIp",
+        "| order by Hits desc"
+      ]
+    },
+    {
+      "id": "azfw-app-denied-top",
+      "name": "Denied application rule requests (top FQDNs)",
+      "description": "FQDNs the firewall is blocking most, and how many sources hit them.",
+      "tags": ["application rules", "denied"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "3", "raw": true },
+        { "name": "top", "label": "Top N", "default": "50", "raw": true }
+      ],
+      "kql": [
+        "AZFWApplicationRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Action == 'Deny'",
+        "| summarize Hits = count(), Sources = dcount(SourceIp), LastSeen = max(TimeGenerated) by Fqdn",
+        "| top {{top}} by Hits desc"
+      ]
+    },
+    {
+      "id": "azfw-app-by-fqdn",
+      "name": "Application rule hits for an FQDN",
+      "description": "Requests matching a (partial) FQDN, with action and rule.",
+      "tags": ["application rules", "fqdn"],
+      "parameters": [
+        { "name": "fqdn", "label": "FQDN contains", "default": "example.com" },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWApplicationRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Fqdn contains '{{fqdn}}'",
+        "| order by TimeGenerated desc",
+        "| take 1000"
+      ]
+    },
+    {
+      "id": "azfw-app-by-source",
+      "name": "Application rule traffic from a source IP",
+      "description": "What a single client tried to reach and whether it was allowed.",
+      "tags": ["application rules", "ip"],
+      "parameters": [
+        { "name": "ip", "label": "Source IP", "default": "10.0.0.4" },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWApplicationRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where SourceIp == '{{ip}}'",
+        "| summarize Hits = count(), LastSeen = max(TimeGenerated) by Action, Fqdn",
+        "| order by Hits desc"
+      ]
+    },
+    {
+      "id": "azfw-dns-name",
+      "name": "DNS proxy lookups for a name",
+      "description": "Who queried a domain through the firewall DNS proxy.",
+      "tags": ["dns"],
+      "parameters": [
+        { "name": "name", "label": "Query name contains", "default": "example.com" },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWDnsQuery",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where QueryName contains '{{name}}'",
+        "| order by TimeGenerated desc",
+        "| take 1000"
+      ]
+    },
+    {
+      "id": "azfw-dns-top-clients",
+      "name": "DNS proxy top query names for a client",
+      "description": "Most queried names from one source IP.",
+      "tags": ["dns", "ip"],
+      "parameters": [
+        { "name": "ip", "label": "Source IP", "default": "10.0.0.4" },
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWDnsQuery",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where SourceIp == '{{ip}}'",
+        "| summarize Queries = count(), LastSeen = max(TimeGenerated) by QueryName",
+        "| top 100 by Queries desc"
+      ]
+    },
+    {
+      "id": "azfw-threatintel",
+      "name": "Threat intelligence hits",
+      "description": "Traffic matched against Microsoft threat intelligence.",
+      "tags": ["threat intel", "security"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "AZFWThreatIntel",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| order by TimeGenerated desc",
+        "| take 1000"
+      ]
+    },
+    {
+      "id": "azfw-idps",
+      "name": "IDPS signature hits (Premium)",
+      "description": "Intrusion detection and prevention matches.",
+      "tags": ["idps", "security"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "14", "raw": true }
+      ],
+      "kql": [
+        "AZFWIdpsSignature",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| order by TimeGenerated desc",
+        "| take 1000"
+      ]
+    },
+    {
+      "id": "azfw-nat",
+      "name": "NAT (DNAT) rule hits",
+      "description": "Inbound translated connections.",
+      "tags": ["nat"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AZFWNatRule",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| order by TimeGenerated desc",
+        "| take 1000"
+      ]
+    },
+    {
+      "id": "azfw-legacy-denied",
+      "name": "Denied traffic (legacy AzureDiagnostics mode)",
+      "description": "For firewalls still logging to the AzureDiagnostics table instead of the resource-specific tables.",
+      "tags": ["legacy", "denied"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "3", "raw": true }
+      ],
+      "kql": [
+        "AzureDiagnostics",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Category in ('AzureFirewallNetworkRule', 'AzureFirewallApplicationRule')",
+        "| where msg_s has 'Deny'",
+        "| parse kind=relaxed msg_s with Protocol ' request from ' SourceIp ':' SourcePort:int ' to ' Destination ':' DestPort:int '. Action: ' Action '.' *",
+        "| project TimeGenerated, Category, Protocol, SourceIp, SourcePort, Destination, DestPort, Action, msg_s",
+        "| order by TimeGenerated desc"
+      ]
+    }
+  ]
+}

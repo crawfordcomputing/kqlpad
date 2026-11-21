@@ -1,0 +1,82 @@
+{
+  "category": "Workspace and Health",
+  "description": "What is in the workspace, what it costs, and whether agents are reporting.",
+  "queries": [
+    {
+      "id": "ws-ingestion-by-table",
+      "name": "Billable ingestion by table",
+      "description": "GB ingested per table: where the money is going.",
+      "tags": ["cost", "overview"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "Usage",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where IsBillable == true",
+        "| summarize GB = round(sum(Quantity) / 1000, 2) by DataType",
+        "| order by GB desc"
+      ]
+    },
+    {
+      "id": "ws-ingestion-daily",
+      "name": "Daily billable ingestion",
+      "description": "Total GB per day to spot spikes.",
+      "tags": ["cost"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "30", "raw": true }
+      ],
+      "kql": [
+        "Usage",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where IsBillable == true",
+        "| summarize GB = round(sum(Quantity) / 1000, 2) by Day = bin(TimeGenerated, 1d)",
+        "| order by Day asc"
+      ]
+    },
+    {
+      "id": "ws-heartbeat-missing",
+      "name": "Computers not reporting (Heartbeat)",
+      "description": "Agents whose last heartbeat is older than the threshold.",
+      "tags": ["agents", "health"],
+      "parameters": [
+        { "name": "hours", "label": "Silent for more than (hours)", "default": "24", "raw": true }
+      ],
+      "kql": [
+        "Heartbeat",
+        "| summarize LastHeartbeat = max(TimeGenerated), OSType = any(OSType), Category = any(Category) by Computer",
+        "| where LastHeartbeat < ago({{hours}}h)",
+        "| order by LastHeartbeat asc"
+      ]
+    },
+    {
+      "id": "ws-heartbeat-all",
+      "name": "All agents with last heartbeat",
+      "description": "Every computer seen in the last 30 days and when it last reported.",
+      "tags": ["agents", "inventory"],
+      "parameters": [],
+      "kql": [
+        "Heartbeat",
+        "| where TimeGenerated > ago(30d)",
+        "| summarize LastHeartbeat = max(TimeGenerated), OSType = any(OSType), Version = any(Version) by Computer",
+        "| order by LastHeartbeat desc"
+      ]
+    },
+    {
+      "id": "ws-operation-warnings",
+      "name": "Workspace operation warnings and errors",
+      "description": "Ingestion and data collection problems reported by the workspace itself.",
+      "tags": ["health", "ingestion"],
+      "parameters": [
+        { "name": "days", "label": "Days back", "default": "7", "raw": true }
+      ],
+      "kql": [
+        "_LogOperation",
+        "| where TimeGenerated > ago({{days}}d)",
+        "| where Level in ('Warning', 'Error')",
+        "| project TimeGenerated, Category, Operation, Level, Detail",
+        "| order by TimeGenerated desc"
+      ]
+    }
+  ]
+}
